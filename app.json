@@ -13,8 +13,14 @@
         "ACCESS_BACKGROUND_LOCATION",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "POST_NOTIFICATIONS"
-      ]
+        "POST_NOTIFICATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
+      ],
+      "package": "com.ajdc2021.spotcheck"
     },
     "ios": {
       "supportsTablet": true,
@@ -22,7 +28,10 @@
         "NSLocationWhenInUseUsageDescription": "SpotCheck needs your location to detect when you enter a store.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "SpotCheck needs background location for store entry alerts.",
         "NSLocationAlwaysUsageDescription": "SpotCheck needs background location for store entry alerts.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
       }
     },
     "plugins": [
@@ -35,6 +44,11 @@
         }
       ],
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3be78b2e-d86b-4ac2-88e5-11e6c106e54e"
+      }
+    }
   }
 }
