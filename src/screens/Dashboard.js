@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  TextInput,
   Dimensions,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useBudget } from '../context/BudgetContext';
@@ -46,11 +50,30 @@ export default function Dashboard() {
     getDailyAllowance,
     getProgress,
     spendFromCategory,
+    refundTransaction,
+    updateBudget,
     resetToDemo,
+    resetAllBudgets,
+    resetTransactions,
     getDaysLeftInMonth,
+    overallBudget,
+    transactions,
     theme,
     toggleTheme,
   } = useBudget();
+
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [newLimit, setNewLimit] = useState('');
+  const [manualSpendAmounts, setManualSpendAmounts] = useState({});
+  const [selectedFilter, setSelectedFilter] = useState('All');
+
+  const handleManualSpend = (category) => {
+    const amount = parseFloat(manualSpendAmounts[category]);
+    if (!isNaN(amount) && amount > 0) {
+      spendFromCategory(category, amount);
+      setManualSpendAmounts(prev => ({ ...prev, [category]: '' }));
+    }
+  };
 
   const categories = Object.keys(budgets);
   const totalAllocated = categories.reduce((s, c) => s + budgets[c].allocated, 0);
@@ -59,14 +82,125 @@ export default function Dashboard() {
   const overallProgress = totalAllocated > 0 ? Math.min(totalSpent / totalAllocated, 1) : 0;
   const daysLeft = getDaysLeftInMonth();
   const dayOfMonth = new Date().getDate();
+
+  // Calculate stats based on filter
+  let displaySpent = totalSpent;
+  let displayAllocated = overallBudget; // Default "Total Money" to the fixed pool
+
+  if (selectedFilter !== 'All') {
+    displaySpent = budgets[selectedFilter]?.spent || 0;
+    displayAllocated = budgets[selectedFilter]?.allocated || 0;
+  }
+
+  const displayBurnRate = dayOfMonth > 1 ? displaySpent / dayOfMonth : displaySpent;
+  const displayRemaining = displayAllocated - displaySpent;
   const dailyBurnRate = dayOfMonth > 1 ? totalSpent / dayOfMonth : totalSpent;
+
+  // Real Transaction-based Stats
+  const now = new Date();
+  const todayStr = now.toDateString();
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const getFilteredTotal = (filterFn) => {
+    return transactions
+      .filter(tx => {
+        const matchesCategory = selectedFilter === 'All' ? true : tx.category === selectedFilter;
+        return filterFn(new Date(tx.timestamp)) && matchesCategory;
+      })
+      .reduce((s, tx) => s + tx.amount, 0);
+  };
+
+  const spentToday = getFilteredTotal(d => d.toDateString() === todayStr);
+  const spentWeekly = getFilteredTotal(d => d >= oneWeekAgo);
+  const spentMonthlyReal = getFilteredTotal(d => d >= startOfMonth);
+
+  // Fallback Monthly to displaySpent if no transactions found (for demo compatibility)
+  const displayMonthly = transactions.length > 0 ? spentMonthlyReal : displaySpent;
+
+  const handleStartEdit = (category, currentLimit) => {
+    setEditingCategory(category);
+    setNewLimit(currentLimit.toString());
+  };
+
+  const handleSaveLimit = () => {
+    if (editingCategory) {
+      updateBudget(editingCategory, parseFloat(newLimit) || 0);
+      setEditingCategory(null);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#0A0A0B' }]}>
       <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} backgroundColor={theme === 'light' ? '#F8FAFC' : '#0A0A0B'} />
+
+      {/* ── Edit Limit Modal ─────────────────────────────────────── */}
+      <Modal
+        visible={!!editingCategory}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingCategory(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setEditingCategory(null)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContainer}
+          >
+            <View style={[styles.modalContent, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B' }]}>
+              <Text style={[styles.modalTitle, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>
+                {editingCategory === 'Total' ? 'Set Total Budget' : `Set ${editingCategory} Limit`}
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                {editingCategory === 'Total' 
+                  ? 'Adjust your overall monthly spending target'
+                  : 'How much do you want to spend?'}
+              </Text>
+
+              <View style={[styles.modalInputWrapper, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#0F172A' }]}>
+                <Text style={styles.modalCurrency}>₱</Text>
+                <TextInput
+                  style={[styles.modalInput, { color: theme === 'light' ? '#4F46E5' : '#818CF8' }]}
+                  value={newLimit}
+                  onChangeText={setNewLimit}
+                  keyboardType="numeric"
+                  autoFocus
+                  placeholder="0"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalCancel]}
+                  onPress={() => setEditingCategory(null)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalSave]}
+                  onPress={handleSaveLimit}
+                >
+                  <LinearGradient
+                    colors={['#4F46E5', '#6366F1']}
+                    style={styles.modalSaveGradient}
+                  >
+                    <Text style={styles.modalSaveText}>Save Limit</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
+      </Modal>
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
 
         {/* ── Header ─────────────────────────────────────────────── */}
@@ -76,8 +210,8 @@ export default function Dashboard() {
             <Text style={[styles.subtitle, { color: theme === 'light' ? '#64748B' : '#94A3B8' }]}>Budget Intelligence</Text>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity 
-              style={[styles.themeToggle, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]} 
+            <TouchableOpacity
+              style={[styles.themeToggle, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]}
               onPress={toggleTheme}
               activeOpacity={0.7}
             >
@@ -96,39 +230,82 @@ export default function Dashboard() {
           end={{ x: 1, y: 1 }}
           style={styles.heroCard}
         >
-          <View style={styles.heroHeader}>
-            <Text style={styles.heroLabel}>Net Balance</Text>
-            <View style={styles.burnBadge}>
-              <Text style={styles.burnText}>🔥 ${dailyBurnRate.toFixed(2)}/day</Text>
+
+          <View style={styles.heroMainRow}>
+            <View style={styles.heroGroup}>
+              <View style={styles.heroLabelRow}>
+                <Text style={styles.heroLabelSmall}>Total Money</Text>
+                <TouchableOpacity 
+                  onPress={() => handleStartEdit('Total', overallBudget)}
+                  style={styles.heroEditButton}
+                >
+                  <Text style={styles.heroEditIcon}>✏️</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.heroValueLarge}>₱{(overallBudget - totalAllocated).toFixed(0)}</Text>
+            </View>
+            <View style={styles.heroVerticalDivider} />
+            <View style={styles.heroGroup}>
+              <Text style={styles.heroLabelSmall}>Net Balance</Text>
+              <Text style={styles.heroValueLarge}>₱{(overallBudget - totalSpent).toFixed(0)}</Text>
             </View>
           </View>
 
-          <Text style={styles.heroAmount}>${totalRemaining.toFixed(2)}</Text>
-
-          <View style={styles.heroProgressContainer}>
-            <View style={styles.heroProgressTrack}>
-              <View style={[styles.heroProgressFill, { width: `${overallProgress * 100}%` }]} />
+          <View style={styles.heroProgressArea}>
+            <View style={styles.heroProgressBarTrack}>
+              <View style={[styles.heroProgressBarFill, { width: `${(displaySpent / (displayAllocated || 1)) * 100}%` }]} />
             </View>
-            <Text style={styles.heroProgressPct}>
-              {(overallProgress * 100).toFixed(0)}%
+            <Text style={styles.heroProgressText}>
+              {displayAllocated > 0 ? ((displaySpent / displayAllocated) * 100).toFixed(0) : 0}%
             </Text>
           </View>
 
+
+
           <View style={styles.heroStatsGrid}>
+
             <View style={styles.heroStatItem}>
-              <Text style={styles.heroStatLabel}>Limit</Text>
-              <Text style={styles.heroStatValue}>${totalAllocated.toFixed(0)}</Text>
+              <Text style={styles.heroStatLabel}>LIMIT</Text>
+              <Text style={styles.heroStatValue}>₱{displayAllocated.toFixed(0)}</Text>
             </View>
             <View style={styles.heroStatItem}>
-              <Text style={styles.heroStatLabel}>Spent</Text>
-              <Text style={styles.heroStatValue}>${totalSpent.toFixed(0)}</Text>
+              <Text style={styles.heroStatLabel}>SPENT</Text>
+              <Text style={styles.heroStatValue}>₱{displaySpent.toFixed(0)}</Text>
             </View>
             <View style={styles.heroStatItem}>
-              <Text style={styles.heroStatLabel}>Days</Text>
+              <Text style={styles.heroStatLabel}>DAYS</Text>
               <Text style={styles.heroStatValue}>{daysLeft}</Text>
             </View>
           </View>
         </LinearGradient>
+
+        {/* ── Category Filter for Insights ──────────────────────── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+        >
+          {['All', ...categories].map(cat => (
+            <TouchableOpacity
+              key={cat}
+              onPress={() => setSelectedFilter(cat)}
+              style={[
+                styles.filterChip,
+                selectedFilter === cat && styles.filterChipActive,
+                { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' },
+                selectedFilter === cat && { backgroundColor: theme === 'light' ? '#4F46E5' : '#818CF8', borderColor: '#4F46E5' }
+              ]}
+            >
+              <Text style={[
+                styles.filterChipText,
+                { color: theme === 'light' ? '#64748B' : '#94A3B8' },
+                selectedFilter === cat && { color: '#FFFFFF' }
+              ]}>
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
         {/* ── Insights Gallery ────────────────────────────────────── */}
         <ScrollView
@@ -137,18 +314,26 @@ export default function Dashboard() {
           contentContainerStyle={styles.insightsScroll}
         >
           <View style={[styles.insightCard, { backgroundColor: theme === 'light' ? '#F5F3FF' : '#1E1B4B', borderColor: theme === 'light' ? 'rgba(79, 70, 229, 0.2)' : 'rgba(129, 140, 248, 0.3)' }]}>
-            <Text style={styles.insightEmoji}>🎯</Text>
-            <Text style={[styles.insightLabel, { color: theme === 'light' ? '#475569' : '#C7D2FE' }]}>Daily Safe Spend</Text>
+            <Text style={styles.insightEmoji}>📉</Text>
+            <Text style={[styles.insightLabel, { color: theme === 'light' ? '#475569' : '#C7D2FE' }]}>Daily Spent</Text>
             <Text style={[styles.insightValue, { color: theme === 'light' ? '#4F46E5' : '#818CF8' }]}>
-              ${(totalRemaining / daysLeft).toFixed(2)}
+              ₱{spentToday.toFixed(0)}
+            </Text>
+          </View>
+
+          <View style={[styles.insightCard, { backgroundColor: theme === 'light' ? '#FDF2F8' : '#500724', borderColor: theme === 'light' ? 'rgba(236, 72, 153, 0.2)' : 'rgba(244, 114, 182, 0.3)' }]}>
+            <Text style={styles.insightEmoji}>📅</Text>
+            <Text style={[styles.insightLabel, { color: theme === 'light' ? '#475569' : '#FBCFE8' }]}>Weekly Spent</Text>
+            <Text style={[styles.insightValue, { color: theme === 'light' ? '#EC4899' : '#F472B6' }]}>
+              ₱{spentWeekly.toFixed(0)}
             </Text>
           </View>
 
           <View style={[styles.insightCard, { backgroundColor: theme === 'light' ? '#F0FDF4' : '#064E3B', borderColor: theme === 'light' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(52, 211, 153, 0.3)' }]}>
-            <Text style={styles.insightEmoji}>📈</Text>
-            <Text style={[styles.insightLabel, { color: theme === 'light' ? '#475569' : '#A7F3D0' }]}>Est. Savings</Text>
+            <Text style={styles.insightEmoji}>💰</Text>
+            <Text style={[styles.insightLabel, { color: theme === 'light' ? '#475569' : '#A7F3D0' }]}>Monthly Spent</Text>
             <Text style={[styles.insightValue, { color: theme === 'light' ? '#10B981' : '#34D399' }]}>
-              ${(totalRemaining * 0.2).toFixed(0)}
+              ₱{displayMonthly.toFixed(0)}
             </Text>
           </View>
 
@@ -156,9 +341,19 @@ export default function Dashboard() {
             <Text style={styles.insightEmoji}>🔥</Text>
             <Text style={[styles.insightLabel, { color: theme === 'light' ? '#475569' : '#FDE68A' }]}>Spend Streak</Text>
             <Text style={[styles.insightValue, { color: theme === 'light' ? '#F59E0B' : '#FBBF24' }]}>
-              12 Days
+              {transactions.length > 0 ? '1 Day' : '0 Days'}
             </Text>
           </View>
+
+          <TouchableOpacity 
+            style={[styles.insightCard, styles.resetStatsCard, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#111112', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]}
+            onPress={resetTransactions}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.insightEmoji}>↻</Text>
+            <Text style={[styles.insightLabel, { color: theme === 'light' ? '#64748B' : '#94A3B8' }]}>Reset Stats</Text>
+            <Text style={[styles.insightValue, { fontSize: 14, color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>Clear History</Text>
+          </TouchableOpacity>
         </ScrollView>
 
         {/* ── Section Title ───────────────────────────────────────── */}
@@ -187,20 +382,30 @@ export default function Dashboard() {
                 <View style={styles.cardMeta}>
                   <Text style={[styles.cardTitle, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>{category}</Text>
                   <Text style={[styles.cardSubtitle, { color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>
-                    ${spent.toFixed(0)} spent of ${allocated.toFixed(0)}
+                    ₱{spent.toFixed(0)} spent of ₱{allocated.toFixed(0)}
                   </Text>
                 </View>
 
-                <View style={[
-                  styles.balancePill,
-                  { backgroundColor: isOverBudget ? 'rgba(239,68,68,0.1)' : (theme === 'light' ? 'rgba(16,185,129,0.1)' : 'rgba(52,211,153,0.1)') },
-                ]}>
-                  <Text style={[
-                    styles.balanceText,
-                    { color: isOverBudget ? '#EF4444' : '#10B981' },
+                <View style={styles.cardRight}>
+                  <View style={[
+                    styles.balancePill,
+                    { backgroundColor: isOverBudget ? 'rgba(239,68,68,0.1)' : (theme === 'light' ? 'rgba(16,185,129,0.1)' : 'rgba(52,211,153,0.1)') },
                   ]}>
-                    ${Math.abs(balance).toFixed(0)} left
-                  </Text>
+                    <Text style={[
+                      styles.balanceText,
+                      { color: isOverBudget ? '#EF4444' : '#10B981' },
+                    ]}>
+                      ₱{Math.abs(balance).toFixed(0)} left
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => handleStartEdit(category, allocated)}
+                    style={styles.editButtonTop}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={styles.editIconLarge}>✏️</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -224,18 +429,27 @@ export default function Dashboard() {
               </View>
 
               <View style={[styles.cardFooter, { borderTopColor: theme === 'light' ? '#F1F5F9' : '#2A2A2B' }]}>
-                <View>
-                  <Text style={[styles.allowanceLabel, { color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>DAILY BUDGET</Text>
-                  <Text style={[styles.allowanceValue, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>${allowance}</Text>
+                <View style={styles.spendActionRow}>
+                  <View style={[styles.spendInputWrapper, allocated === 0 && styles.spendDisabled, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#1F2937' }]}>
+                    <Text style={styles.spendPesoPrefix}>₱</Text>
+                    <TextInput
+                      style={[styles.spendInput, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}
+                      value={manualSpendAmounts[category] || ''}
+                      onChangeText={(val) => setManualSpendAmounts(prev => ({ ...prev, [category]: val }))}
+                      placeholder="0"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="numeric"
+                      editable={allocated > 0}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.spendButtonAction, allocated === 0 && styles.spendDisabled, { backgroundColor: theme === 'light' ? '#4F46E5' : '#818CF8' }]}
+                    onPress={() => handleManualSpend(category)}
+                    disabled={allocated <= 0}
+                  >
+                    <Text style={styles.spendButtonText}>Spend</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={[styles.quickSpendButton, allocated === 0 && styles.spendButtonDisabled, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#1F2937', borderColor: theme === 'light' ? '#E2E8F0' : '#374151' }]}
-                  onPress={() => spendFromCategory(category, 10)}
-                  disabled={allocated === 0}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.quickSpendText, { color: theme === 'light' ? '#475569' : '#94A3B8' }]}>Quick Spend $10</Text>
-                </TouchableOpacity>
               </View>
             </View>
           );
@@ -244,33 +458,56 @@ export default function Dashboard() {
         {/* ── Activity Pulse ────────────────────────────────────── */}
         <Text style={[styles.sectionTitle, { marginTop: 12, color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>Activity Pulse</Text>
         <View style={[styles.activityCard, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#111112', borderColor: theme === 'light' ? '#F1F5F9' : '#2A2A2B' }]}>
-          {[
-            { id: 1, type: 'spent', label: 'Starbucks Coffee', amount: '-$10', time: '2h ago', icon: '☕' },
-            { id: 2, type: 'limit', label: 'Food Budget increased', amount: '+$50', time: 'Yesterday', icon: '📈' },
-            { id: 3, type: 'spent', label: 'Uber Ride', amount: '-$15', time: '2 days ago', icon: '🚗' },
-          ].map((item, idx, arr) => (
-            <View key={item.id} style={[styles.activityItem, idx === arr.length - 1 && { borderBottomWidth: 0 }, { borderBottomColor: theme === 'light' ? '#F1F5F9' : '#2A2A2B' }]}>
-              <View style={[styles.activityIconCircle, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#1F2937' }]}>
-                <Text style={styles.activityEmoji}>{item.icon}</Text>
-              </View>
-              <View style={styles.activityMeta}>
-                <Text style={[styles.activityLabel, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>{item.label}</Text>
-                <Text style={[styles.activityTime, { color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>{item.time}</Text>
-              </View>
-              <Text style={[
-                styles.activityAmount,
-                { color: item.type === 'spent' ? '#EF4444' : '#10B981' }
-              ]}>
-                {item.amount}
-              </Text>
+          {transactions.length === 0 ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: '#94A3B8' }}>No activity yet</Text>
             </View>
-          ))}
+          ) : (
+            transactions.map((item, idx, arr) => (
+              <View key={item.id} style={[styles.activityItem, idx === arr.length - 1 && { borderBottomWidth: 0 }, { borderBottomColor: theme === 'light' ? '#F1F5F9' : '#2A2A2B' }]}>
+                <View style={[styles.activityIconCircle, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#1F2937' }]}>
+                  <Text style={styles.activityEmoji}>{ICONS[item.category] || '📦'}</Text>
+                </View>
+                <View style={styles.activityMeta}>
+                  <Text style={[styles.activityLabel, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>{item.category}</Text>
+                  <Text style={[styles.activityTime, { color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>
+                    {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+                <View style={styles.activityRight}>
+                  <Text style={[styles.activityAmount, { color: '#EF4444' }]}>
+                    -₱{item.amount.toFixed(0)}
+                  </Text>
+                  <TouchableOpacity 
+                    onPress={() => refundTransaction(item.id)}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={styles.refundText}>↺ Refund</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         {/* ── Reset Button ─────────────────────────────────────────── */}
-        <TouchableOpacity style={[styles.resetButton, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]} onPress={resetToDemo} activeOpacity={0.7}>
-          <Text style={[styles.resetButtonText, { color: theme === 'light' ? '#64748B' : '#94A3B8' }]}>↻  Reset Demo Data</Text>
-        </TouchableOpacity>
+        <View style={styles.resetRow}>
+          <TouchableOpacity 
+            style={[styles.resetButtonHalf, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]} 
+            onPress={resetToDemo} 
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.resetButtonText, { color: theme === 'light' ? '#64748B' : '#94A3B8' }]}>↻  Reset Demo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.resetButtonHalf, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#FEE2E2' : '#450A0A' }]} 
+            onPress={resetAllBudgets} 
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.resetButtonText, { color: '#EF4444' }]}>🗑️  Clear All</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* ── Test Notification Button ─────────────────────────────── */}
         <TouchableOpacity
@@ -280,7 +517,7 @@ export default function Dashboard() {
             await Notifications.scheduleNotificationAsync({
               content: {
                 title: '📍 Welcome to Starbucks!',
-                body: 'You have $20.00 left for Coffee. Your safe spend today is $2.50.',
+                body: 'You have ₱20.00 left for Coffee. Your safe spend today is ₱2.50.',
                 sound: true,
               },
               trigger: null,
@@ -305,7 +542,7 @@ const styles = StyleSheet.create({
   // ── Layout ─────────────────────────────────────────────────────
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0B', // Default to dark, will override in style prop
+    backgroundColor: '#0A0A0B',
   },
   scroll: {
     paddingHorizontal: 20,
@@ -375,69 +612,98 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
 
-  // ── Hero Card ──────────────────────────────────────────────────
+  // ── Hero Card ─────────────────────────────────────────────────
   heroCard: {
     borderRadius: 32,
     padding: 24,
-    marginBottom: 32,
+    marginBottom: 28,
     shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 10,
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  heroHeader: {
+  heroMainRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  heroLabel: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  burnBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  burnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  heroAmount: {
-    color: '#FFFFFF',
-    fontSize: 48,
-    fontWeight: '800',
-    letterSpacing: -1,
     marginBottom: 24,
   },
-  heroProgressContainer: {
+  heroGroup: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  heroVerticalDivider: {
+    width: 1,
+    height: 80,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginHorizontal: 16,
+  },
+  heroLabelSmall: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  heroLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 4,
+    gap: 6,
   },
-  heroProgressTrack: {
+  heroEditButton: {
+    padding: 4,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 6,
+  },
+  heroEditIcon: {
+    fontSize: 10,
+  },
+  heroValueLarge: {
+    color: '#FFFFFF',
+    fontSize: 60,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+    textAlign: 'center',
+  },
+  heroProgressArea: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  heroProgressBarTrack: {
     flex: 1,
     height: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 4,
     marginRight: 12,
     overflow: 'hidden',
   },
-  heroProgressFill: {
+  heroProgressBarFill: {
     height: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: 4,
   },
-  heroProgressPct: {
+  heroProgressText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    width: 32,
+    textAlign: 'right',
+  },
+  heroBurnRow: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  heroBurnTextSmall: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
-    width: 35,
   },
   heroStatsGrid: {
     flexDirection: 'row',
@@ -448,50 +714,57 @@ const styles = StyleSheet.create({
   },
   heroStatItem: {
     alignItems: 'center',
+    flex: 1,
   },
   heroStatLabel: {
     color: 'rgba(255,255,255,0.6)',
     fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
-    marginBottom: 4,
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
   heroStatValue: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
   },
 
-  // ── Insights ──────────────────────────────────────────────────
+  // ── Insights Gallery ──────────────────────────────────────────
   insightsScroll: {
-    paddingRight: 20,
-    marginBottom: 32,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    gap: 12,
   },
   insightCard: {
-    width: 140,
-    padding: 18,
+    width: 130,
+    height: 120,
     borderRadius: 24,
+    padding: 16,
     marginRight: 12,
     borderWidth: 1.5,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resetStatsCard: {
+    borderStyle: 'dashed',
   },
   insightEmoji: {
-    fontSize: 20,
-    marginBottom: 8,
+    fontSize: 32,
+    marginBottom: 12,
   },
   insightLabel: {
-    color: '#475569',
     fontSize: 11,
     fontWeight: '700',
+    textAlign: 'center',
     marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   insightValue: {
     fontSize: 18,
     fontWeight: '800',
+    textAlign: 'center',
   },
 
   // ── Section ────────────────────────────────────────────────────
@@ -536,14 +809,41 @@ const styles = StyleSheet.create({
   cardMeta: {
     flex: 1,
   },
+  cardRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editButtonTop: {
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    borderRadius: 10,
+  },
+  editIconLarge: {
+    fontSize: 14,
+  },
   cardTitle: {
     color: '#0F172A',
     fontSize: 18,
     fontWeight: '700',
   },
-  cardSubtitle: {
-    color: '#94A3B8',
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  limitEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  editIcon: {
     fontSize: 12,
+    marginLeft: 6,
+    opacity: 0.6,
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
     marginTop: 2,
   },
   balancePill: {
@@ -592,7 +892,7 @@ const styles = StyleSheet.create({
   // ── Card Footer ────────────────────────────────────────────────
   cardFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingTop: 16,
     borderTopWidth: 1,
@@ -610,21 +910,52 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 2,
   },
-  quickSpendButton: {
-    backgroundColor: '#F8FAFC',
+  spendActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  spendInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
+    width: 90,
   },
-  quickSpendText: {
-    color: '#475569',
-    fontSize: 13,
+  spendPesoPrefix: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginRight: 4,
     fontWeight: '700',
   },
-  spendButtonDisabled: {
-    opacity: 0.35,
+  spendInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    padding: 0,
+  },
+  spendButtonAction: {
+    height: 40,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  spendButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  spendDisabled: {
+    opacity: 0.4,
   },
 
   // ── Activity Pulse ──────────────────────────────────────────
@@ -669,25 +1000,146 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
-  activityAmount: {
-    fontSize: 14,
+  activityRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  refundText: {
+    fontSize: 10,
     fontWeight: '700',
+    color: '#4F46E5',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 
   // ── Bottom Buttons ─────────────────────────────────────────────
-  resetButton: {
-    alignSelf: 'center',
+  resetRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
     marginTop: 32,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+  },
+  resetButtonHalf: {
+    flex: 1,
+    height: 50,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   resetButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  // ── Filter Chips ─────────────────────────────────────────────
+  filterScroll: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  filterChipActive: {
+    borderWidth: 0,
+    elevation: 4,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  // ── Modal Styles ──────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalContent: {
+    borderRadius: 32,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    color: '#94A3B8',
+    fontSize: 14,
+    marginBottom: 24,
+  },
+  modalInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 20,
+    marginBottom: 24,
+  },
+  modalCurrency: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#94A3B8',
+    marginRight: 8,
+  },
+  modalInput: {
+    fontSize: 28,
+    fontWeight: '800',
+    flex: 1,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    height: 56,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCancel: {
+    backgroundColor: '#F1F5F9',
+  },
+  modalCancelText: {
     color: '#64748B',
-    fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  modalSave: {
+    overflow: 'hidden',
+  },
+  modalSaveGradient: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalSaveText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 16,
   },
 });

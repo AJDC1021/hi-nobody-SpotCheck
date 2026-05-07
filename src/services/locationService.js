@@ -70,10 +70,10 @@ TaskManager.defineTask(LOCATION_GEOFENCE_TASK, async ({ data, error }) => {
     let title, body;
     if (balance > 0) {
       title = `📍 Welcome to ${store.name}!`;
-      body = `You have $${balance.toFixed(2)} left for ${store.category}. Your safe spend today is $${dailyAllowance}.`;
+      body = `You have ₱${balance.toFixed(2)} left for ${store.category}. Your safe spend today is ₱${dailyAllowance}.`;
     } else {
-      title = `⚠️ WARNING — $0 for ${store.category}`;
-      body = `You have $0 left for ${store.category}. High risk of overspending!`;
+      title = `⚠️ WARNING — ₱0 for ${store.category}`;
+      body = `You have ₱0 left for ${store.category}. High risk of overspending!`;
     }
 
     await Notifications.scheduleNotificationAsync({

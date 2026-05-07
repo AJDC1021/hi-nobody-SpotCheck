@@ -5,6 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const BUDGETS_KEY = '@spotcheck_budgets';
 const LOCATIONS_KEY = '@spotcheck_locations';
 const THEME_KEY = '@spotcheck_theme';
+const OVERALL_BUDGET_KEY = '@spotcheck_overall_budget';
+const TRANSACTIONS_KEY = '@spotcheck_transactions';
 
 // ─── Demo Data (pre-populated for hackathon presentation) ────────
 const DEMO_BUDGETS = {
@@ -26,6 +28,8 @@ const BudgetContext = createContext(null);
 
 export function BudgetProvider({ children }) {
   const [budgets, setBudgets] = useState(DEMO_BUDGETS);
+  const [overallBudget, setOverallBudget] = useState(500);
+  const [transactions, setTransactions] = useState([]);
   const [savedLocations, setSavedLocations] = useState(DEMO_LOCATIONS);
   const [theme, setTheme] = useState('light');
   const [isLoaded, setIsLoaded] = useState(false);
@@ -34,14 +38,18 @@ export function BudgetProvider({ children }) {
   useEffect(() => {
     (async () => {
       try {
-        const [rawBudgets, rawLocations, rawTheme] = await Promise.all([
+        const [rawBudgets, rawLocations, rawTheme, rawOverall, rawTx] = await Promise.all([
           AsyncStorage.getItem(BUDGETS_KEY),
           AsyncStorage.getItem(LOCATIONS_KEY),
           AsyncStorage.getItem(THEME_KEY),
+          AsyncStorage.getItem(OVERALL_BUDGET_KEY),
+          AsyncStorage.getItem(TRANSACTIONS_KEY),
         ]);
         if (rawBudgets) setBudgets(JSON.parse(rawBudgets));
         if (rawLocations) setSavedLocations(JSON.parse(rawLocations));
         if (rawTheme) setTheme(rawTheme);
+        if (rawOverall) setOverallBudget(parseFloat(rawOverall));
+        if (rawTx) setTransactions(JSON.parse(rawTx));
       } catch (err) {
         console.warn('[SpotCheck] AsyncStorage hydration failed:', err);
       } finally {
@@ -67,6 +75,12 @@ export function BudgetProvider({ children }) {
     if (!isLoaded) return;
     AsyncStorage.setItem(THEME_KEY, theme).catch(console.warn);
   }, [theme, isLoaded]);
+
+  // ── Persist whenever transactions change ───────────────────────
+  useEffect(() => {
+    if (!isLoaded) return;
+    AsyncStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(transactions)).catch(console.warn);
+  }, [transactions, isLoaded]);
 
   // ── Remaining balance for a category ───────────────────────────
   const getBalance = useCallback(
@@ -105,15 +119,62 @@ export function BudgetProvider({ children }) {
         [category]: { ...entry, spent: entry.spent + amount },
       };
     });
+
+    // Record transaction
+    setTransactions(prev => [
+      {
+        id: Date.now().toString(),
+        category,
+        amount,
+        timestamp: new Date().toISOString(),
+      },
+      ...prev
+    ].slice(0, 50)); // Keep last 50
+  }, []);
+
+  const refundTransaction = useCallback((id) => {
+    setTransactions((prev) => {
+      const tx = prev.find(t => t.id === id);
+      if (!tx) return prev;
+
+      setBudgets(bPrev => {
+        const cat = bPrev[tx.category];
+        if (!cat) return bPrev;
+        return {
+          ...bPrev,
+          [tx.category]: { ...cat, spent: Math.max(cat.spent - tx.amount, 0) }
+        };
+      });
+
+      return prev.filter(t => t.id !== id);
+    });
   }, []);
 
   // ── Update allocated budget ────────────────────────────────────
   const updateBudget = useCallback((category, allocated) => {
-    setBudgets((prev) => ({
-      ...prev,
-      [category]: { allocated, spent: prev[category]?.spent ?? 0 },
-    }));
-  }, []);
+    if (category === 'Total') {
+      setOverallBudget(allocated);
+      AsyncStorage.setItem(OVERALL_BUDGET_KEY, allocated.toString());
+      return;
+    }
+
+    setBudgets((prev) => {
+      // Logic: Ensure sum of all categories doesn't exceed overallBudget
+      const keys = Object.keys(prev);
+      const otherTotal = keys.reduce((s, k) => k === category ? s : s + prev[k].allocated, 0);
+      
+      // Cap the new allocation at what's left in the overall budget
+      const available = Math.max(overallBudget - otherTotal, 0);
+      const cappedAllocated = Math.min(allocated, available);
+
+      const next = {
+        ...prev,
+        [category]: { allocated: cappedAllocated, spent: prev[category]?.spent ?? 0 },
+      };
+      AsyncStorage.setItem(BUDGETS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [overallBudget]);
 
   // ── Add a new category ─────────────────────────────────────────
   const addCategory = useCallback((category, allocated = 0) => {
@@ -137,7 +198,32 @@ export function BudgetProvider({ children }) {
   const resetToDemo = useCallback(async () => {
     setBudgets(DEMO_BUDGETS);
     setSavedLocations(DEMO_LOCATIONS);
-    await AsyncStorage.multiRemove([BUDGETS_KEY, LOCATIONS_KEY]);
+    setTransactions([]);
+    await AsyncStorage.multiRemove([BUDGETS_KEY, LOCATIONS_KEY, TRANSACTIONS_KEY]);
+  }, []);
+
+  const resetAllBudgets = useCallback(async () => {
+    setBudgets((prev) => {
+      const next = {};
+      Object.keys(prev).forEach(k => {
+        next[k] = { allocated: 0, spent: 0 };
+      });
+      return next;
+    });
+    setTransactions([]);
+    await AsyncStorage.multiRemove([BUDGETS_KEY, TRANSACTIONS_KEY]);
+  }, []);
+
+  const resetTransactions = useCallback(async () => {
+    setTransactions([]);
+    setBudgets(prev => {
+      const next = {};
+      Object.keys(prev).forEach(k => {
+        next[k] = { ...prev[k], spent: 0 };
+      });
+      return next;
+    });
+    await AsyncStorage.removeItem(TRANSACTIONS_KEY);
   }, []);
 
   // ── Progress ratio (0-1) for progress bars ─────────────────────
@@ -156,6 +242,8 @@ export function BudgetProvider({ children }) {
 
   const value = {
     budgets,
+    overallBudget,
+    transactions,
     savedLocations,
     isLoaded,
     getBalance,
@@ -163,11 +251,14 @@ export function BudgetProvider({ children }) {
     getDaysLeftInMonth,
     getProgress,
     spendFromCategory,
+    refundTransaction,
     updateBudget,
     addCategory,
     addLocation,
     removeLocation,
     resetToDemo,
+    resetAllBudgets,
+    resetTransactions,
     theme,
     toggleTheme,
   };
