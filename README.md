@@ -18,16 +18,6 @@ You can download and install the latest build directly to your Android device:
 > [!TIP]
 > After downloading, you may need to "Allow installation from unknown sources" in your Android settings to install the APK.
 
----
-
-## 💎 Premium Features
-
-*   **✨ Landing Screen** — Beautiful, gradient-rich entry point with Indigo & Emerald aesthetics.
-*   **📍 Smart Geofencing** — One-tap store pinning with instant background registration.
-*   **🔔 Proactive Alerts** — Push notifications triggered by GPS to keep your budget top-of-mind.
-*   **📊 Dynamic Dashboard** — Real-time tracking of 5 core budget categories with live progress bars.
-*   **💡 Daily Allowance** — Intelligent "Safe Spend" calculation based on the remaining days in the month.
-*   **🌙 Dark Fintech UI** — Sleek, modern interface designed for high readability and focus.
 
 ---
 
