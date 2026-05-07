@@ -1,9 +1,5 @@
 # 🟢 SpotCheck — Proactive Budget Alerts at the Door
 
-<p align="center">
-  <img src="./logo.png" width="120" height="120" alt="SpotCheck Logo" />
-</p>
-
 **SpotCheck** is a geofenced budgeting assistant that helps you stay on track by sending real-time alerts the moment you enter a store. Using background location tracking, the app automatically reminds you of your remaining budget exactly when you need it most, preventing impulsive overspending.
 
 ---
