@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "SpotCheck",
+    "slug": "spotcheck",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "backgroundColor": "#121212",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SpotCheck needs your location to detect when you enter a store.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "SpotCheck needs background location for store entry alerts.",
+        "NSLocationAlwaysUsageDescription": "SpotCheck needs background location for store entry alerts.",
+        "UIBackgroundModes": ["location", "fetch"]
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "SpotCheck needs your location to detect when you enter a store.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-notifications"
+    ]
+  }
+}
