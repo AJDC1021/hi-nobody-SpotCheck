@@ -162,7 +162,7 @@ export function BudgetProvider({ children }) {
       // Logic: Ensure sum of all categories doesn't exceed overallBudget
       const keys = Object.keys(prev);
       const otherTotal = keys.reduce((s, k) => k === category ? s : s + prev[k].allocated, 0);
-      
+
       // Cap the new allocation at what's left in the overall budget
       const available = Math.max(overallBudget - otherTotal, 0);
       const cappedAllocated = Math.min(allocated, available);

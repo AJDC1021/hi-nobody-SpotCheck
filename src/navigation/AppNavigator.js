@@ -1,13 +1,16 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
 import { Text, View, StyleSheet } from 'react-native';
 import { useBudget } from '../context/BudgetContext';
 
 import Dashboard from '../screens/Dashboard';
 import MapScreen from '../screens/MapScreen';
+import LandingScreen from '../screens/LandingScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 function TabIcon({ label, focused }) {
   const { theme } = useBudget();
@@ -32,29 +35,37 @@ function TabIcon({ label, focused }) {
   );
 }
 
-export default function AppNavigator() {
+function MainTabs() {
   const { theme } = useBudget();
-  
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: [
+          styles.tabBar,
+          { 
+            backgroundColor: theme === 'light' ? '#FFFFFF' : '#111112',
+            borderTopColor: theme === 'light' ? 'transparent' : '#2A2A2B',
+            borderTopWidth: theme === 'light' ? 0 : 1,
+          }
+        ],
+        tabBarIcon: ({ focused }) => <TabIcon label={route.name} focused={focused} />,
+      })}
+    >
+      <Tab.Screen name="Dashboard" component={Dashboard} />
+      <Tab.Screen name="Map" component={MapScreen} />
+    </Tab.Navigator>
+  );
+}
+
+export default function AppNavigator() {
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarShowLabel: false,
-          tabBarStyle: [
-            styles.tabBar,
-            { 
-              backgroundColor: theme === 'light' ? '#FFFFFF' : '#111112',
-              borderTopColor: theme === 'light' ? 'transparent' : '#2A2A2B',
-              borderTopWidth: theme === 'light' ? 0 : 1,
-            }
-          ],
-          tabBarIcon: ({ focused }) => <TabIcon label={route.name} focused={focused} />,
-        })}
-      >
-        <Tab.Screen name="Dashboard" component={Dashboard} />
-        <Tab.Screen name="Map" component={MapScreen} />
-      </Tab.Navigator>
+      <Stack.Navigator initialRouteName="Landing" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Landing" component={LandingScreen} />
+        <Stack.Screen name="Main" component={MainTabs} />
+      </Stack.Navigator>
     </NavigationContainer>
   );
 }
