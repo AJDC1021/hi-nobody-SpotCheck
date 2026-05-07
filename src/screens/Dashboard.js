@@ -155,7 +155,7 @@ export default function Dashboard() {
                 {editingCategory === 'Total' ? 'Set Total Budget' : `Set ${editingCategory} Limit`}
               </Text>
               <Text style={styles.modalSubtitle}>
-                {editingCategory === 'Total' 
+                {editingCategory === 'Total'
                   ? 'Adjust your overall monthly spending target'
                   : 'How much do you want to spend?'}
               </Text>
@@ -235,7 +235,7 @@ export default function Dashboard() {
             <View style={styles.heroGroup}>
               <View style={styles.heroLabelRow}>
                 <Text style={styles.heroLabelSmall}>Total Money</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => handleStartEdit('Total', overallBudget)}
                   style={styles.heroEditButton}
                 >
@@ -345,7 +345,7 @@ export default function Dashboard() {
             </Text>
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.insightCard, styles.resetStatsCard, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#111112', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]}
             onPress={resetTransactions}
             activeOpacity={0.7}
@@ -478,7 +478,7 @@ export default function Dashboard() {
                   <Text style={[styles.activityAmount, { color: '#EF4444' }]}>
                     -₱{item.amount.toFixed(0)}
                   </Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => refundTransaction(item.id)}
                     activeOpacity={0.6}
                   >
@@ -492,17 +492,17 @@ export default function Dashboard() {
 
         {/* ── Reset Button ─────────────────────────────────────────── */}
         <View style={styles.resetRow}>
-          <TouchableOpacity 
-            style={[styles.resetButtonHalf, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]} 
-            onPress={resetToDemo} 
+          <TouchableOpacity
+            style={[styles.resetButtonHalf, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]}
+            onPress={resetToDemo}
             activeOpacity={0.7}
           >
             <Text style={[styles.resetButtonText, { color: theme === 'light' ? '#64748B' : '#94A3B8' }]}>↻  Reset Demo</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.resetButtonHalf, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#FEE2E2' : '#450A0A' }]} 
-            onPress={resetAllBudgets} 
+          <TouchableOpacity
+            style={[styles.resetButtonHalf, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#FEE2E2' : '#450A0A' }]}
+            onPress={resetAllBudgets}
             activeOpacity={0.7}
           >
             <Text style={[styles.resetButtonText, { color: '#EF4444' }]}>🗑️  Clear All</Text>
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
   },
   heroValueLarge: {
     color: '#FFFFFF',
-    fontSize: 60,
+    fontSize: 40,
     fontWeight: '900',
     letterSpacing: -1.5,
     textAlign: 'center',
