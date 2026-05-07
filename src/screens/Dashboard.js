@@ -13,22 +13,30 @@ import { useBudget } from '../context/BudgetContext';
 
 const { width } = Dimensions.get('window');
 
-// ─── Category icons (emoji for zero-dependency demo) ─────────────
+// ─── Category icons ───────────────────────────────────────────────
 const ICONS = {
   Coffee: '☕',
-  Food: '🍔',
-  Tech: '💻',
-  Transport: '🚗',
-  Entertainment: '🎮',
+  Food: '🍽️',
+  Tech: '⚡',
+  Transport: '🚲',
+  Entertainment: '✨',
 };
 
-// ─── Accent palette per category ─────────────────────────────────
+// ─── Accent gradients per category ───────────────────────────────
 const ACCENT = {
-  Coffee: ['#6F4E37', '#A67B5B'],
-  Food: ['#FF6B35', '#FF9F1C'],
-  Tech: ['#00FF41', '#00CC33'],
-  Transport: ['#4361EE', '#3A86FF'],
-  Entertainment: ['#F72585', '#B5179E'],
+  Coffee: ['#4F46E5', '#818CF8'], // Indigo
+  Food: ['#10B981', '#34D399'], // Emerald
+  Tech: ['#F59E0B', '#FBBF24'], // Amber
+  Transport: ['#06B6D4', '#22D3EE'], // Cyan
+  Entertainment: ['#EC4899', '#F472B6'], // Pink
+};
+
+const ICON_BG = {
+  Coffee: 'rgba(79, 70, 229, 0.08)',
+  Food: 'rgba(16, 185, 129, 0.08)',
+  Tech: 'rgba(245, 158, 11, 0.08)',
+  Transport: 'rgba(6, 182, 212, 0.08)',
+  Entertainment: 'rgba(236, 72, 153, 0.08)',
 };
 
 export default function Dashboard() {
@@ -40,332 +48,646 @@ export default function Dashboard() {
     spendFromCategory,
     resetToDemo,
     getDaysLeftInMonth,
+    theme,
+    toggleTheme,
   } = useBudget();
 
   const categories = Object.keys(budgets);
   const totalAllocated = categories.reduce((s, c) => s + budgets[c].allocated, 0);
   const totalSpent = categories.reduce((s, c) => s + budgets[c].spent, 0);
   const totalRemaining = Math.max(totalAllocated - totalSpent, 0);
+  const overallProgress = totalAllocated > 0 ? Math.min(totalSpent / totalAllocated, 1) : 0;
   const daysLeft = getDaysLeftInMonth();
+  const dayOfMonth = new Date().getDate();
+  const dailyBurnRate = dayOfMonth > 1 ? totalSpent / dayOfMonth : totalSpent;
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A0A0A" />
+    <View style={[styles.container, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#0A0A0B' }]}>
+      <StatusBar barStyle={theme === 'light' ? 'dark-content' : 'light-content'} backgroundColor={theme === 'light' ? '#F8FAFC' : '#0A0A0B'} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ──────────────────────────────────────────── */}
+
+        {/* ── Header ─────────────────────────────────────────────── */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>SpotCheck</Text>
-          <Text style={styles.subtitle}>Proactive Budget Tracking</Text>
+          <View>
+            <Text style={[styles.greeting, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>SpotCheck 👋</Text>
+            <Text style={[styles.subtitle, { color: theme === 'light' ? '#64748B' : '#94A3B8' }]}>Budget Intelligence</Text>
+          </View>
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              style={[styles.themeToggle, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]} 
+              onPress={toggleTheme}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.themeIcon}>{theme === 'light' ? '🌙' : '☀️'}</Text>
+            </TouchableOpacity>
+            <View style={[styles.avatarCircle, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]}>
+              <Text style={styles.avatarText}>💰</Text>
+            </View>
+          </View>
         </View>
 
-        {/* ── Summary Card ────────────────────────────────────── */}
+        {/* ── Hero / Summary Card ─────────────────────────────────── */}
         <LinearGradient
-          colors={['#1A1A2E', '#16213E']}
+          colors={['#4F46E5', '#10B981']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.summaryCard}
+          style={styles.heroCard}
         >
-          <Text style={styles.summaryLabel}>REMAINING THIS MONTH</Text>
-          <Text style={styles.summaryAmount}>${totalRemaining.toFixed(2)}</Text>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryChip}>
-              <Text style={styles.chipLabel}>Allocated</Text>
-              <Text style={styles.chipValue}>${totalAllocated.toFixed(2)}</Text>
+          <View style={styles.heroHeader}>
+            <Text style={styles.heroLabel}>Net Balance</Text>
+            <View style={styles.burnBadge}>
+              <Text style={styles.burnText}>🔥 ${dailyBurnRate.toFixed(2)}/day</Text>
             </View>
-            <View style={styles.summaryChip}>
-              <Text style={styles.chipLabel}>Spent</Text>
-              <Text style={[styles.chipValue, { color: '#FF6B6B' }]}>
-                ${totalSpent.toFixed(2)}
-              </Text>
+          </View>
+
+          <Text style={styles.heroAmount}>${totalRemaining.toFixed(2)}</Text>
+
+          <View style={styles.heroProgressContainer}>
+            <View style={styles.heroProgressTrack}>
+              <View style={[styles.heroProgressFill, { width: `${overallProgress * 100}%` }]} />
             </View>
-            <View style={styles.summaryChip}>
-              <Text style={styles.chipLabel}>Days Left</Text>
-              <Text style={[styles.chipValue, { color: '#00FF41' }]}>{daysLeft}</Text>
+            <Text style={styles.heroProgressPct}>
+              {(overallProgress * 100).toFixed(0)}%
+            </Text>
+          </View>
+
+          <View style={styles.heroStatsGrid}>
+            <View style={styles.heroStatItem}>
+              <Text style={styles.heroStatLabel}>Limit</Text>
+              <Text style={styles.heroStatValue}>${totalAllocated.toFixed(0)}</Text>
+            </View>
+            <View style={styles.heroStatItem}>
+              <Text style={styles.heroStatLabel}>Spent</Text>
+              <Text style={styles.heroStatValue}>${totalSpent.toFixed(0)}</Text>
+            </View>
+            <View style={styles.heroStatItem}>
+              <Text style={styles.heroStatLabel}>Days</Text>
+              <Text style={styles.heroStatValue}>{daysLeft}</Text>
             </View>
           </View>
         </LinearGradient>
 
-        {/* ── Budget Cards ────────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Budget Categories</Text>
+        {/* ── Insights Gallery ────────────────────────────────────── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.insightsScroll}
+        >
+          <View style={[styles.insightCard, { backgroundColor: theme === 'light' ? '#F5F3FF' : '#1E1B4B', borderColor: theme === 'light' ? 'rgba(79, 70, 229, 0.2)' : 'rgba(129, 140, 248, 0.3)' }]}>
+            <Text style={styles.insightEmoji}>🎯</Text>
+            <Text style={[styles.insightLabel, { color: theme === 'light' ? '#475569' : '#C7D2FE' }]}>Daily Safe Spend</Text>
+            <Text style={[styles.insightValue, { color: theme === 'light' ? '#4F46E5' : '#818CF8' }]}>
+              ${(totalRemaining / daysLeft).toFixed(2)}
+            </Text>
+          </View>
 
+          <View style={[styles.insightCard, { backgroundColor: theme === 'light' ? '#F0FDF4' : '#064E3B', borderColor: theme === 'light' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(52, 211, 153, 0.3)' }]}>
+            <Text style={styles.insightEmoji}>📈</Text>
+            <Text style={[styles.insightLabel, { color: theme === 'light' ? '#475569' : '#A7F3D0' }]}>Est. Savings</Text>
+            <Text style={[styles.insightValue, { color: theme === 'light' ? '#10B981' : '#34D399' }]}>
+              ${(totalRemaining * 0.2).toFixed(0)}
+            </Text>
+          </View>
+
+          <View style={[styles.insightCard, { backgroundColor: theme === 'light' ? '#FFFBEB' : '#78350F', borderColor: theme === 'light' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(251, 191, 36, 0.3)' }]}>
+            <Text style={styles.insightEmoji}>🔥</Text>
+            <Text style={[styles.insightLabel, { color: theme === 'light' ? '#475569' : '#FDE68A' }]}>Spend Streak</Text>
+            <Text style={[styles.insightValue, { color: theme === 'light' ? '#F59E0B' : '#FBBF24' }]}>
+              12 Days
+            </Text>
+          </View>
+        </ScrollView>
+
+        {/* ── Section Title ───────────────────────────────────────── */}
+        <Text style={[styles.sectionTitle, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>Categories</Text>
+
+        {/* ── Budget Cards ────────────────────────────────────────── */}
         {categories.map((category) => {
           const balance = getBalance(category);
           const allowance = getDailyAllowance(category);
           const progress = getProgress(category);
-          const colors = ACCENT[category] || ['#00FF41', '#00CC33'];
+          const accentColors = ACCENT[category] || ['#6366F1', '#818CF8'];
+          const iconBg = ICON_BG[category] || 'rgba(99,102,241,0.12)';
           const icon = ICONS[category] || '📦';
           const isOverBudget = progress >= 1;
           const allocated = budgets[category].allocated;
           const spent = budgets[category].spent;
+          const pct = Math.min(progress * 100, 100);
 
           return (
-            <View key={category} style={styles.card}>
-              {/* Card header */}
-              <View style={styles.cardHeader}>
-                <View style={styles.cardTitleRow}>
+            <View key={category} style={[styles.card, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#111112', borderColor: theme === 'light' ? '#F1F5F9' : '#2A2A2B' }]}>
+              <View style={styles.cardTop}>
+                <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
                   <Text style={styles.cardIcon}>{icon}</Text>
-                  <View>
-                    <Text style={styles.cardTitle}>{category}</Text>
-                    <Text style={styles.cardSubtitle}>
-                      ${spent.toFixed(2)} / ${allocated.toFixed(2)}
-                    </Text>
-                  </View>
                 </View>
-                <View style={styles.balanceBadge}>
-                  <Text
-                    style={[
-                      styles.balanceText,
-                      { color: isOverBudget ? '#FF6B6B' : '#00FF41' },
-                    ]}
-                  >
-                    ${balance.toFixed(2)}
+
+                <View style={styles.cardMeta}>
+                  <Text style={[styles.cardTitle, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>{category}</Text>
+                  <Text style={[styles.cardSubtitle, { color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>
+                    ${spent.toFixed(0)} spent of ${allocated.toFixed(0)}
+                  </Text>
+                </View>
+
+                <View style={[
+                  styles.balancePill,
+                  { backgroundColor: isOverBudget ? 'rgba(239,68,68,0.1)' : (theme === 'light' ? 'rgba(16,185,129,0.1)' : 'rgba(52,211,153,0.1)') },
+                ]}>
+                  <Text style={[
+                    styles.balanceText,
+                    { color: isOverBudget ? '#EF4444' : '#10B981' },
+                  ]}>
+                    ${Math.abs(balance).toFixed(0)} left
                   </Text>
                 </View>
               </View>
 
-              {/* Progress bar */}
-              <View style={styles.progressTrack}>
-                <LinearGradient
-                  colors={isOverBudget ? ['#FF6B6B', '#EE4444'] : colors}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.progressFill, { width: `${Math.min(progress * 100, 100)}%` }]}
-                />
+              <View style={styles.progressContainer}>
+                <View style={[styles.progressTrack, { backgroundColor: theme === 'light' ? '#F1F5F9' : '#1F2937' }]}>
+                  <LinearGradient
+                    colors={isOverBudget ? ['#EF4444', '#F87171'] : accentColors}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.progressFill, { width: `${pct}%` }]}
+                  />
+                  {/* Safe spend marker at 70% */}
+                  {!isOverBudget && (
+                    <View style={[styles.safeMarker, { left: '70%', backgroundColor: theme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)' }]} />
+                  )}
+                </View>
+                <View style={styles.progressLabels}>
+                  <Text style={[styles.progressText, { color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>{pct.toFixed(0)}% used</Text>
+                  <Text style={[styles.progressText, { color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>Budget Limit</Text>
+                </View>
               </View>
 
-              {/* Daily allowance + spend button */}
-              <View style={styles.cardFooter}>
-                <Text style={styles.allowanceText}>
-                  Safe today: <Text style={styles.allowanceValue}>${allowance}</Text>
-                </Text>
+              <View style={[styles.cardFooter, { borderTopColor: theme === 'light' ? '#F1F5F9' : '#2A2A2B' }]}>
+                <View>
+                  <Text style={[styles.allowanceLabel, { color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>DAILY BUDGET</Text>
+                  <Text style={[styles.allowanceValue, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>${allowance}</Text>
+                </View>
                 <TouchableOpacity
-                  style={[
-                    styles.spendButton,
-                    allocated === 0 && styles.spendButtonDisabled,
-                  ]}
+                  style={[styles.quickSpendButton, allocated === 0 && styles.spendButtonDisabled, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#1F2937', borderColor: theme === 'light' ? '#E2E8F0' : '#374151' }]}
                   onPress={() => spendFromCategory(category, 10)}
                   disabled={allocated === 0}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.spendButtonText}>− $10</Text>
+                  <Text style={[styles.quickSpendText, { color: theme === 'light' ? '#475569' : '#94A3B8' }]}>Quick Spend $10</Text>
                 </TouchableOpacity>
               </View>
             </View>
           );
         })}
 
-        {/* ── Reset Button ────────────────────────────────────── */}
-        <TouchableOpacity style={styles.resetButton} onPress={resetToDemo} activeOpacity={0.7}>
-          <Text style={styles.resetButtonText}>↻ Reset Demo Data</Text>
+        {/* ── Activity Pulse ────────────────────────────────────── */}
+        <Text style={[styles.sectionTitle, { marginTop: 12, color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>Activity Pulse</Text>
+        <View style={[styles.activityCard, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#111112', borderColor: theme === 'light' ? '#F1F5F9' : '#2A2A2B' }]}>
+          {[
+            { id: 1, type: 'spent', label: 'Starbucks Coffee', amount: '-$10', time: '2h ago', icon: '☕' },
+            { id: 2, type: 'limit', label: 'Food Budget increased', amount: '+$50', time: 'Yesterday', icon: '📈' },
+            { id: 3, type: 'spent', label: 'Uber Ride', amount: '-$15', time: '2 days ago', icon: '🚗' },
+          ].map((item, idx, arr) => (
+            <View key={item.id} style={[styles.activityItem, idx === arr.length - 1 && { borderBottomWidth: 0 }, { borderBottomColor: theme === 'light' ? '#F1F5F9' : '#2A2A2B' }]}>
+              <View style={[styles.activityIconCircle, { backgroundColor: theme === 'light' ? '#F8FAFC' : '#1F2937' }]}>
+                <Text style={styles.activityEmoji}>{item.icon}</Text>
+              </View>
+              <View style={styles.activityMeta}>
+                <Text style={[styles.activityLabel, { color: theme === 'light' ? '#0F172A' : '#FFFFFF' }]}>{item.label}</Text>
+                <Text style={[styles.activityTime, { color: theme === 'light' ? '#94A3B8' : '#64748B' }]}>{item.time}</Text>
+              </View>
+              <Text style={[
+                styles.activityAmount,
+                { color: item.type === 'spent' ? '#EF4444' : '#10B981' }
+              ]}>
+                {item.amount}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ── Reset Button ─────────────────────────────────────────── */}
+        <TouchableOpacity style={[styles.resetButton, { backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? '#E2E8F0' : '#2A2A2B' }]} onPress={resetToDemo} activeOpacity={0.7}>
+          <Text style={[styles.resetButtonText, { color: theme === 'light' ? '#64748B' : '#94A3B8' }]}>↻  Reset Demo Data</Text>
         </TouchableOpacity>
 
-        {/* ── SECRET HACKATHON TEST BUTTON ────────────────────── */}
-        <TouchableOpacity 
-          style={[styles.resetButton, { marginTop: 10, borderColor: '#00FF41' }]} 
+        {/* ── Test Notification Button ─────────────────────────────── */}
+        <TouchableOpacity
+          style={[styles.resetButton, { marginTop: 12, backgroundColor: theme === 'light' ? '#FFFFFF' : '#1A1A1B', borderColor: theme === 'light' ? 'rgba(79, 70, 229, 0.2)' : 'rgba(129, 140, 248, 0.2)' }]}
           onPress={async () => {
             const Notifications = require('expo-notifications');
             await Notifications.scheduleNotificationAsync({
               content: {
-                title: "📍 Welcome to Starbucks!",
-                body: "You have $20.00 left for Coffee. Your safe spend today is $2.50.",
+                title: '📍 Welcome to Starbucks!',
+                body: 'You have $20.00 left for Coffee. Your safe spend today is $2.50.',
                 sound: true,
               },
               trigger: null,
             });
           }}
         >
-          <Text style={[styles.resetButtonText, { color: '#00FF41' }]}>🚀 Test Notification Alert</Text>
+          <Text style={[styles.resetButtonText, { color: theme === 'light' ? '#4F46E5' : '#818CF8' }]}>
+            🚀  Test Notification Alert
+          </Text>
         </TouchableOpacity>
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 50 }} />
       </ScrollView>
     </View>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  STYLES
+//  STYLES  — Light Mode
 // ═══════════════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
+  // ── Layout ─────────────────────────────────────────────────────
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0A',
+    backgroundColor: '#0A0A0B', // Default to dark, will override in style prop
   },
   scroll: {
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 56,
     paddingBottom: 20,
   },
+
   // ── Header ─────────────────────────────────────────────────────
   header: {
-    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 28,
   },
   greeting: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
+    color: '#0F172A',
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: 15,
-    color: '#00FF41',
-    marginTop: 4,
+    fontSize: 14,
+    color: '#64748B',
+    marginTop: 2,
     fontWeight: '500',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  // ── Summary Card ───────────────────────────────────────────────
-  summaryCard: {
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(0,255,65,0.15)',
-  },
-  summaryLabel: {
-    color: '#888',
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  summaryAmount: {
-    color: '#FFFFFF',
-    fontSize: 42,
-    fontWeight: '800',
-    marginVertical: 8,
-  },
-  summaryRow: {
+  headerRight: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  summaryChip: {
     alignItems: 'center',
   },
-  chipLabel: {
-    color: '#666',
-    fontSize: 11,
+  themeToggle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  themeIcon: {
+    fontSize: 20,
+  },
+  avatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  avatarText: {
+    fontSize: 20,
+  },
+
+  // ── Hero Card ──────────────────────────────────────────────────
+  heroCard: {
+    borderRadius: 32,
+    padding: 24,
+    marginBottom: 32,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  heroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  heroLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
   },
-  chipValue: {
+  burnBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  burnText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 11,
     fontWeight: '700',
-    marginTop: 4,
   },
+  heroAmount: {
+    color: '#FFFFFF',
+    fontSize: 48,
+    fontWeight: '800',
+    letterSpacing: -1,
+    marginBottom: 24,
+  },
+  heroProgressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  heroProgressTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 4,
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  heroProgressFill: {
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 4,
+  },
+  heroProgressPct: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    width: 35,
+  },
+  heroStatsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
+    padding: 16,
+  },
+  heroStatItem: {
+    alignItems: 'center',
+  },
+  heroStatLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  heroStatValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  // ── Insights ──────────────────────────────────────────────────
+  insightsScroll: {
+    paddingRight: 20,
+    marginBottom: 32,
+  },
+  insightCard: {
+    width: 140,
+    padding: 18,
+    borderRadius: 24,
+    marginRight: 12,
+    borderWidth: 1.5,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  insightEmoji: {
+    fontSize: 20,
+    marginBottom: 8,
+  },
+  insightLabel: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  insightValue: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+
   // ── Section ────────────────────────────────────────────────────
   sectionTitle: {
-    color: '#888',
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
+    color: '#0F172A',
+    fontSize: 20,
+    fontWeight: '800',
     marginBottom: 16,
+    letterSpacing: -0.5,
   },
+
   // ── Card ───────────────────────────────────────────────────────
   card: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 20,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  cardHeader: {
+  cardTop: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 20,
   },
-  cardTitleRow: {
-    flexDirection: 'row',
+  iconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 16,
   },
   cardIcon: {
-    fontSize: 28,
-    marginRight: 12,
+    fontSize: 24,
+  },
+  cardMeta: {
+    flex: 1,
   },
   cardTitle: {
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontSize: 18,
     fontWeight: '700',
   },
   cardSubtitle: {
-    color: '#666',
-    fontSize: 13,
+    color: '#94A3B8',
+    fontSize: 12,
     marginTop: 2,
   },
-  balanceBadge: {
-    backgroundColor: 'rgba(0,255,65,0.08)',
-    paddingHorizontal: 14,
+  balancePill: {
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 12,
   },
   balanceText: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 12,
+    fontWeight: '700',
   },
+
   // ── Progress ───────────────────────────────────────────────────
+  progressContainer: {
+    marginBottom: 24,
+  },
   progressTrack: {
-    height: 6,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 3,
+    height: 10,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 5,
     overflow: 'hidden',
-    marginBottom: 14,
+    marginBottom: 8,
+    position: 'relative',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 5,
   },
-  // ── Footer ─────────────────────────────────────────────────────
+  safeMarker: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  progressLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  progressText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
+  // ── Card Footer ────────────────────────────────────────────────
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-  allowanceText: {
-    color: '#888',
-    fontSize: 13,
+  allowanceLabel: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   allowanceValue: {
-    color: '#00FF41',
-    fontWeight: '700',
+    color: '#0F172A',
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 2,
   },
-  spendButton: {
-    backgroundColor: 'rgba(255,107,107,0.15)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  quickSpendButton: {
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: 'rgba(255,107,107,0.3)',
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  quickSpendText: {
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '700',
   },
   spendButtonDisabled: {
-    opacity: 0.3,
+    opacity: 0.35,
   },
-  spendButtonText: {
-    color: '#FF6B6B',
+
+  // ── Activity Pulse ──────────────────────────────────────────
+  activityCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  activityIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  activityEmoji: {
+    fontSize: 18,
+  },
+  activityMeta: {
+    flex: 1,
+  },
+  activityLabel: {
+    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  activityTime: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  activityAmount: {
     fontSize: 14,
     fontWeight: '700',
   },
-  // ── Reset ──────────────────────────────────────────────────────
+
+  // ── Bottom Buttons ─────────────────────────────────────────────
   resetButton: {
     alignSelf: 'center',
-    marginTop: 20,
+    marginTop: 32,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 24,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#E2E8F0',
   },
   resetButtonText: {
-    color: '#666',
-    fontSize: 14,
+    color: '#64748B',
+    fontSize: 13,
     fontWeight: '600',
   },
 });

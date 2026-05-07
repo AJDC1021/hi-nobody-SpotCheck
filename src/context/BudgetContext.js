@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ─── Storage Keys ────────────────────────────────────────────────
 const BUDGETS_KEY = '@spotcheck_budgets';
 const LOCATIONS_KEY = '@spotcheck_locations';
+const THEME_KEY = '@spotcheck_theme';
 
 // ─── Demo Data (pre-populated for hackathon presentation) ────────
 const DEMO_BUDGETS = {
@@ -26,18 +27,21 @@ const BudgetContext = createContext(null);
 export function BudgetProvider({ children }) {
   const [budgets, setBudgets] = useState(DEMO_BUDGETS);
   const [savedLocations, setSavedLocations] = useState(DEMO_LOCATIONS);
+  const [theme, setTheme] = useState('light');
   const [isLoaded, setIsLoaded] = useState(false);
 
   // ── Hydrate from AsyncStorage on mount ─────────────────────────
   useEffect(() => {
     (async () => {
       try {
-        const [rawBudgets, rawLocations] = await Promise.all([
+        const [rawBudgets, rawLocations, rawTheme] = await Promise.all([
           AsyncStorage.getItem(BUDGETS_KEY),
           AsyncStorage.getItem(LOCATIONS_KEY),
+          AsyncStorage.getItem(THEME_KEY),
         ]);
         if (rawBudgets) setBudgets(JSON.parse(rawBudgets));
         if (rawLocations) setSavedLocations(JSON.parse(rawLocations));
+        if (rawTheme) setTheme(rawTheme);
       } catch (err) {
         console.warn('[SpotCheck] AsyncStorage hydration failed:', err);
       } finally {
@@ -57,6 +61,12 @@ export function BudgetProvider({ children }) {
     if (!isLoaded) return;
     AsyncStorage.setItem(LOCATIONS_KEY, JSON.stringify(savedLocations)).catch(console.warn);
   }, [savedLocations, isLoaded]);
+
+  // ── Persist whenever theme changes ─────────────────────────────
+  useEffect(() => {
+    if (!isLoaded) return;
+    AsyncStorage.setItem(THEME_KEY, theme).catch(console.warn);
+  }, [theme, isLoaded]);
 
   // ── Remaining balance for a category ───────────────────────────
   const getBalance = useCallback(
@@ -140,6 +150,10 @@ export function BudgetProvider({ children }) {
     [budgets],
   );
 
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  }, []);
+
   const value = {
     budgets,
     savedLocations,
@@ -154,6 +168,8 @@ export function BudgetProvider({ children }) {
     addLocation,
     removeLocation,
     resetToDemo,
+    theme,
+    toggleTheme,
   };
 
   return <BudgetContext.Provider value={value}>{children}</BudgetContext.Provider>;
